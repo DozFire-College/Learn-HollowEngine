@@ -11,7 +11,7 @@ val GuideReputation = RavenQuestData.GuideReputation
 val GuideTotalConversations =
     RavenQuestData.GuideTotalConversations
 val GuideTalked = RavenQuestData.GuideTalked
-    val GuideWarnings = dataKey<Int>("encore:guide_warnings") { 0 }
+val GuideWarnings = dataKey<Int>("encore:guide_warnings") { 0 }
 val GuideLastVisitor = dataKey<String>("encore:guide_last_visitor") { "никто" }
 val lastInteractionTickByPlayer = mutableMapOf<UUID, Long>()
 
@@ -28,30 +28,32 @@ fun resetGuideData(player: Player) {
     player.data.remove(GuideVisits)
     player.data.remove(GuideReputation)
     player.data.remove(GuideWarnings)
-    player.data.remove(GuideTotalConversations)
     player.data.remove(GuideLastVisitor)
+    player.data.remove(GuideTalked)
 }
 
 onInteract { event ->
     val player = event.player
     val playerUuid = player.uuid
-    val now = player.level().gameTime
 
-    val previousTick = lastInteractionTickByPlayer[playerUuid]
-    if (previousTick != null && now - previousTick < 20L) {
-        return@onInteract
-    }
-    lastInteractionTickByPlayer[playerUuid] = now
-
+    // Dev-сброс не должен блокироваться кулдауном обычных разговоров.
     if (player.isShiftKeyDown) {
         resetGuideData(player)
         data.remove(GuideTotalConversations)
+        lastInteractionTickByPlayer.remove(playerUuid)
         player.send("Эйден: Забудь всё, что было. Начнём знакомство заново.")
         ru.hollowhorizon.hollowengine.HollowEngine.LOGGER.info(
             "[Guide Data] Данные сброшены для ${player.scoreboardName}"
         )
         return@onInteract
     }
+
+    val now = player.level().gameTime
+    val previousTick = lastInteractionTickByPlayer[playerUuid]
+    if (previousTick != null && now - previousTick < 20L) {
+        return@onInteract
+    }
+    lastInteractionTickByPlayer[playerUuid] = now
     
     player.data[GuideTalked] = true
     val wasMet = player.data.getOrPut(GuideMet)

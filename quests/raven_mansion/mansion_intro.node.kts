@@ -12,17 +12,18 @@ private val MANSION_DIMENSION =
     "minecraft:overworld"
 
 private val MANSION_ENTRANCE =
-    BlockPos(-110, -60, -0)
+    BlockPos(40, -60, 14)
 
 private val MANSION_ENTRANCE_RADIUS = 3.0
+
 private val STEALTH_APPROACH_MARKER =
-    MANSION_ENTRANCE.offset(-121, 60, 70)
+    BlockPos(34, -60, 6)
 
 private val FORCE_APPROACH_MARKER =
-    MANSION_ENTRANCE.offset(-106, -60, 57)
+    BlockPos(40, -60, 15)
 
 private val MANSION_GATE =
-    BlockPos(-108, -60, 60)
+    BlockPos(53, -60, 17)
 
 private val MANSION_GATE_RADIUS = 3.0
 private val APPROACH_CHOICE_MEMORY =
@@ -62,6 +63,10 @@ fun isNearMarker(
     player: ServerPlayer,
     marker: BlockPos
 ): Boolean {
+    // Не засчитывать совпадение координат из другой размерности.
+    if (player.level().dimension().location().toString() != MANSION_DIMENSION) {
+        return false
+    }
     val markerCenter = Vec3.atCenterOf(marker)
     val maximumDistanceSquared =
         APPROACH_MARKER_RADIUS * APPROACH_MARKER_RADIUS
@@ -157,6 +162,13 @@ suspend fun countStateEntry(
 @State("arrival")
 suspend fun arrival() {
     val player = playerRef(uuid).resolve()
+
+    // После detach/attach свежий StateContext может снова начать с arrival.
+    // Если вход уже пройден, не заставляем игрока снова искать проводника.
+    if (player.data.getOrPut(RavenQuestData.IntroCompleted)) {
+        chooseApproach()
+        return
+    }
 
     runOnce("arrival/objective_message_v1") {
         playerRef(uuid).resolve().send("§6Новое задание: Пепел Вороньего Поместья")
@@ -288,8 +300,8 @@ suspend fun chooseApproach() {
 
     if (stepBeforeChoice < 1) {
         player.send("§6Выберите способ проникновения.")
-        player.send("§aСлева: пройти через служебный двор.")
-        player.send("§cСправа: войти через главные ворота.")
+        player.send("§aСправа: пройти скрытый вход.")
+        player.send("§cСлева: войти через главные ворота.")
 
         stateSet(
             RavenQuestData.ApproachSceneStep,
@@ -367,10 +379,10 @@ suspend fun approachChosen() {
     if (step < 3) {
         val objective = when (approach) {
             APPROACH_STEALTH ->
-                "§7Новая цель: найдите вход в служебный двор."
+                "§7Новая цель: найти техническое помещение"
 
             APPROACH_FORCE ->
-                "§7Новая цель: осмотрите главные ворота."
+                "§7Новая цель: Осмотрите на наличие солдат."
 
             else -> error("Unknown approach: $approach")
         }
@@ -382,7 +394,9 @@ suspend fun approachChosen() {
             3
         )
     }
-    @State("reset_approach")
+}
+
+@State("reset_approach")
 suspend fun resetApproach() {
     val player = playerRef(uuid).resolve()
 
@@ -419,7 +433,7 @@ suspend fun resetApproach() {
 
     chooseApproach()
 }
-}
+
 onStop {
     ru.hollowhorizon.hollowengine.HollowEngine.LOGGER.info(
         "[Raven Quest] Node остановлен для " +
